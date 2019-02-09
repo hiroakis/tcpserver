@@ -29,8 +29,10 @@ type Server struct {
 	Handler    Handler
 	log        Logger
 	address    *net.TCPAddr
+	Listener   *net.TCPListener
 	wg         *sync.WaitGroup
 	shutdownCh chan struct{}
+	readyCh    chan struct{}
 }
 
 var defaultLogger = log.New(os.Stdout, "[tcpserver] ", log.Lshortfile|log.LstdFlags)
@@ -50,7 +52,12 @@ func NewServer(host, port string, handler Handler, logger Logger) (*Server, erro
 		address:    address,
 		wg:         new(sync.WaitGroup),
 		shutdownCh: make(chan struct{}, 1),
+		readyCh:    make(chan struct{}, 1),
 	}, nil
+}
+
+func (s *Server) Address() string {
+	return s.Listener.Addr().String()
 }
 
 func (s *Server) handleNetError(err error) error {
@@ -176,6 +183,9 @@ func (s *Server) Listen(ctx context.Context) error {
 		return errors.Wrap(err, "net.ListenTCP failed")
 	}
 	defer l.Close()
+
+	s.Listener = l
+	s.readyCh <- struct{}{}
 
 	errCh := make(chan error, 1)
 	s.wg.Add(1)
