@@ -154,12 +154,20 @@ func (s *Server) handleListener(ctx context.Context, l *net.TCPListener) error {
 	}
 }
 
+func (s *Server) IsReady() bool {
+	select {
+	case <-s.readyCh:
+		return true
+	default:
+		return false
+	}
+}
+
 // Listen acts like Listen for TCP IPv4 networks
 func (s *Server) Listen(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
-		close(s.shutdownCh)
 	}()
 
 	s.log.Println("Start net.ListenTCP")
@@ -182,6 +190,7 @@ func (s *Server) Listen(ctx context.Context) error {
 
 	select {
 	case <-s.shutdownCh:
+		close(s.shutdownCh)
 		s.log.Println("Got <-s.shutdownCh waiting for all wg is done")
 		return nil
 	case <-ctx.Done():
